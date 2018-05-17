@@ -35,3 +35,5 @@
 #include <bamboo/utility/timemeasure.hpp>
 
 #include <bamboo/distributed/registry.hpp>
+
+#include <bamboo/cache/l2cache.hpp>

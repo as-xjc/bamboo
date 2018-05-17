@@ -31,11 +31,15 @@ add_library(bamboo
         utility/timemeasure.cpp
 
         distributed/registry.cpp
+
+        cache/l2cache.cpp
         )
 
-add_dependencies(bamboo libboost libzookeeper)
+add_dependencies(bamboo libboost libzookeeper libleveldb libhiredis)
 target_link_libraries(bamboo
         boost_system.a
         boost_filesystem.a
         libboost_program_options.a
-        libzookeeper_mt.a)
+        libzookeeper_mt.a
+        libleveldb.a
+        ${PROJECT_BINARY_DIR}/lib/libhiredis.a)

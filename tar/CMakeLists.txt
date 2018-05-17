@@ -24,3 +24,27 @@ ExternalProject_Add(libzookeeper
         BUILD_COMMAND make
         INSTALL_COMMAND make install
         )
+
+ExternalProject_Add(libleveldb
+        URL https://github.com/google/leveldb/archive/v1.20.tar.gz
+        CONFIGURE_COMMAND ""
+        BUILD_IN_SOURCE 1
+        BUILD_COMMAND make
+        INSTALL_COMMAND ""
+        )
+ExternalProject_Get_Property(libleveldb BINARY_DIR)
+ExternalProject_Add_Step(libleveldb install_leveldb
+        DEPENDEES build
+        COMMENT "install leveldb"
+        WORKING_DIRECTORY ${BINARY_DIR}
+        COMMAND cp ${BINARY_DIR}/out-static/libleveldb.a ${PROJECT_BINARY_DIR}/lib
+        COMMAND cp -r ${BINARY_DIR}/include/leveldb ${PROJECT_BINARY_DIR}/include
+        )
+
+ExternalProject_Add(libhiredis
+        URL https://github.com/redis/hiredis/archive/v0.13.3.tar.gz
+        CONFIGURE_COMMAND ""
+        BUILD_IN_SOURCE 1
+        BUILD_COMMAND make
+        INSTALL_COMMAND make PREFIX=${PROJECT_BINARY_DIR} install
+        )
