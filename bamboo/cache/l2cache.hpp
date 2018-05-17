@@ -5,8 +5,8 @@
 #include <memory>
 #include <string>
 #include <leveldb/db.h>
-#include <hiredis/hiredis.h>
 #include <boost/utility/string_view.hpp>
+#include <bamboo/cache/redis.hpp>
 
 namespace bamboo {
 namespace cache {
@@ -106,7 +106,7 @@ class L2Cache final {
   std::unique_ptr<leveldb::DB> db_;
   Option option_;
 
-  std::unique_ptr<redisContext, decltype(&redisFree)> redis_;
+  Redis redis_;
 };
 
 }

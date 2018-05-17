@@ -1,11 +1,10 @@
 #include "bamboo/cache/l2cache.hpp"
 #include "bamboo/log/log.hpp"
-#include "bamboo/utility/defer.hpp"
 
 namespace bamboo {
 namespace cache {
 
-L2Cache::L2Cache() : redis_(nullptr, nullptr) {}
+L2Cache::L2Cache() {}
 
 L2Cache::~L2Cache() {}
 
@@ -36,13 +35,12 @@ void L2Cache::Set(boost::string_view key, boost::string_view data) {
       ptr->data = data.to_string();
       ptr->expire = option_.defaultExpire;
       ptr->createTime = std::time(nullptr);
-      cache_.insert(std::make_pair(key, ptr));
+      cache_.insert(std::make_pair(key.data(), ptr));
     }
   }
 
   if (redis_) {
-    auto reply = reinterpret_cast<redisReply*>(redisCommand(redis_.get(), "SET %b %b", key.data(), key.size(), data.data(), data.size()));
-    freeReplyObject(reply);
+    redis_.Command("SET %b %b", key.data(), key.size(), data.data(), data.size());
   }
 }
 
@@ -52,8 +50,7 @@ void L2Cache::Del(boost::string_view key) {
   }
 
   if (redis_) {
-    auto reply = reinterpret_cast<redisReply*>(redisCommand(redis_.get(), "DEL %s", key.data()));
-    freeReplyObject(reply);
+    redis_.Command("DEL %s", key.data());
   }
 }
 
@@ -90,8 +87,7 @@ void L2Cache::DbDel(boost::string_view key) {
 std::string L2Cache::ForceGet(boost::string_view key, bool cache) {
   if (!redis_) return "";
 
-  auto reply = reinterpret_cast<redisReply*>(redisCommand(redis_.get(), "GET %s", key.data()));
-  DEFER(freeReplyObject(reply));
+  auto reply = redis_.Command("GET %s", key.data());
   if (reply == nullptr || reply->type != REDIS_REPLY_STRING || reply->len < 1) {
     return "";
   }
@@ -106,7 +102,7 @@ std::string L2Cache::ForceGet(boost::string_view key, bool cache) {
       ptr->data = std::string(reply->str, reply->len);
       ptr->expire = option_.defaultExpire;
       ptr->createTime = std::time(nullptr);
-      cache_.insert(std::make_pair(key, ptr));
+      cache_.insert(std::make_pair(key.data(), ptr));
     }
   }
   return std::string(reply->str, reply->len);
@@ -126,20 +122,7 @@ void L2Cache::Heartbeat() {
 void L2Cache::Ping() {
   if (!redis_) return;
 
-  auto reply = reinterpret_cast<redisReply*>(redisCommand(redis_.get(), "PING"));
-  if (reply != nullptr) {
-    DEFER(freeReplyObject(reply));
-    if (reply->type == REDIS_REPLY_ERROR) {
-      BB_ERROR_LOG("ping redis error:%s", reply->str);
-    }
-  } else {
-    auto ret = redisReconnect(redis_.get());
-    if (ret == REDIS_OK) {
-      BB_INFO_LOG("re-connection redis ok");
-    } else {
-      BB_ERROR_LOG("re-connection redis fail");
-    }
-  }
+  redis_.Ping();
 }
 
 void L2Cache::Init(const bamboo::cache::L2Cache::Option& option) {
@@ -156,18 +139,9 @@ void L2Cache::Init(const bamboo::cache::L2Cache::Option& option) {
   }
 
   if (option_.redisPort > 0 && !option_.redisIp.empty()) {
-    std::unique_ptr<redisContext, decltype(&redisFree)> ptr(redisConnect(option_.redisIp.c_str(), option_.redisPort), &redisFree);
-    if (!ptr) {
-      BB_ERROR_LOG("redis connect null");
+    if (!redis_.Connect(option_.redisIp.c_str(), option_.redisPort)) {
       std::exit(EXIT_FAILURE);
     }
-
-    if (ptr->err) {
-      BB_ERROR_LOG("redis connect error:%s", ptr->errstr);
-      std::exit(EXIT_FAILURE);
-    }
-
-    redis_ = std::move(ptr);
   }
 }
 

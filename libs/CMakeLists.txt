@@ -33,6 +33,7 @@ add_library(bamboo
         distributed/registry.cpp
 
         cache/l2cache.cpp
+        cache/redis.cpp
         )
 
 add_dependencies(bamboo libboost libzookeeper libleveldb libhiredis)

@@ -36,4 +36,5 @@
 
 #include <bamboo/distributed/registry.hpp>
 
+#include <bamboo/cache/redis.hpp>
 #include <bamboo/cache/l2cache.hpp>
