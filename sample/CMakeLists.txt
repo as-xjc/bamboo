@@ -1,0 +1,6 @@
+add_subdirectory(echo-server)
+add_subdirectory(echo-client)
+add_subdirectory(multi-echo-client)
+add_subdirectory(distributed-echo-client)
+add_subdirectory(distributed-echo-server)
+add_subdirectory(console-server)
