@@ -61,5 +61,12 @@ Redis::operator bool() const {
   return redis_ != nullptr;
 }
 
+bool Redis::Auth(boost::string_view view) {
+  if (!redis_) return false;
+
+  auto reply = Command("AUTH %b", view.data(), view.size());
+  return reply && reply->type == REDIS_REPLY_STATUS && std::strcmp(reply->str, "OK") == 0;
+}
+
 }
 }

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <hiredis/hiredis.h>
+#include <boost/utility/string_view.hpp>
 
 namespace bamboo {
 namespace cache {
@@ -24,6 +25,9 @@ class Redis final {
   bool Ping();
 
   explicit operator bool() const;
+
+  /// 授权认证
+  bool Auth(boost::string_view view);
 
  private:
   std::unique_ptr<redisContext, decltype(&redisFree)> redis_;
