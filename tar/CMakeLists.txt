@@ -37,8 +37,9 @@ ExternalProject_Add_Step(libleveldb install_leveldb
         DEPENDEES build
         COMMENT "install leveldb"
         WORKING_DIRECTORY ${BINARY_DIR}
-        COMMAND cp ${BINARY_DIR}/out-static/libleveldb.a ${PROJECT_BINARY_DIR}/lib
-        COMMAND cp -r ${BINARY_DIR}/include/leveldb ${PROJECT_BINARY_DIR}/include
+        COMMAND mkdir -p ${PROJECT_BINARY_DIR}/lib
+        COMMAND cp ${BINARY_DIR}/out-static/libleveldb.a ${PROJECT_BINARY_DIR}/lib/libleveldb.a
+        COMMAND cp -r ${BINARY_DIR}/include/leveldb ${PROJECT_BINARY_DIR}/include/
         )
 
 ExternalProject_Add(libhiredis
