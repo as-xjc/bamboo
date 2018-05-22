@@ -7,14 +7,12 @@ class EchoServer : public bamboo::server::ServerIf {
   using bamboo::server::ServerIf::ServerIf;
   virtual ~EchoServer() {}
 
-  std::shared_ptr<bamboo::distributed::Registry> reg;
-
  protected:
   bool PrepareStart() override {
     auto acceptor = CreateAcceptor<bamboo::net::SimpleAcceptor>(ip_, port_);
-    mgr_ = acceptor->CreateConnManager<bamboo::net::SimpleConnManager>();
+    auto mgr = acceptor->CreateConnManager<bamboo::net::SimpleConnManager>();
     protocol_ = std::make_shared<bamboo::protocol::EchoProtocol>();
-    mgr_->SetReadHandler([this](bamboo::net::SocketPtr so, const char* data, std::size_t size) -> std::size_t {
+    mgr->SetReadHandler([this](bamboo::net::SocketPtr so, const char* data, std::size_t size) -> std::size_t {
       total_ += size;
       return protocol_->ReceiveData(so, data, size);
     });
@@ -28,7 +26,7 @@ class EchoServer : public bamboo::server::ServerIf {
   }
 
   bool FinishStart() override {
-    reg->SetServerInfoHandler([this]()->std::string {
+    bamboo::env::GetIo()->GetRegistry()->SetServerInfoHandler([this]()->std::string {
       std::string msg = ip_;
       msg.append(":").append(std::to_string(port_));
       return msg;
@@ -46,7 +44,6 @@ class EchoServer : public bamboo::server::ServerIf {
   }
 
  private:
-  bamboo::net::ConnManagerPtr mgr_;
   std::shared_ptr<bamboo::protocol::EchoProtocol> protocol_;
   std::size_t total_{0};
   std::string ip_;
@@ -78,8 +75,7 @@ int main(int argc, char* argv[]) {
   auto reg = aio->InitRegistry();
   reg->Init("0.0.0.0:2181");
   reg->SetServerType("echo-server", 0, bamboo::distributed::NodeMode::MASTER_MASTER);
-  auto server = aio->CreateServer<EchoServer>("echo_server");
-  server.first->reg = reg;
+  aio->CreateServer<EchoServer>("echo_server");
   aio->Configure(vm);
   aio->Start();
   bamboo::env::Close();

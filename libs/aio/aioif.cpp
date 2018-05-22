@@ -43,6 +43,10 @@ std::shared_ptr<bamboo::distributed::Registry> AioIf::InitRegistry() {
   return registry_;
 }
 
+std::shared_ptr<bamboo::distributed::Registry> AioIf::GetRegistry() {
+  return registry_;
+}
+
 void AioIf::Signal(int signal, std::function<void(int)>&& handler) {
   auto ptr = std::make_shared<SignalInfo>(GetMasterIo(), signal);
   ptr->handler = [handler, ptr](const boost::system::error_code& error, int signal) {

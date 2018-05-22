@@ -124,6 +124,9 @@ class AioIf {
    */
   virtual std::shared_ptr<bamboo::distributed::Registry> InitRegistry() final;
 
+  /// 返回服务发现对象
+  virtual std::shared_ptr<bamboo::distributed::Registry> GetRegistry() final;
+
   /// 启动所有服务
   virtual void Start() final;
 
