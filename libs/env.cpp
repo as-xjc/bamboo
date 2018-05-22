@@ -9,6 +9,7 @@ namespace {
 
 bamboo::aio::AioPtr Aio;
 std::unique_ptr<bamboo::schedule::Scheduler> scheduler;
+std::string program_name;
 
 }
 
@@ -17,9 +18,9 @@ namespace env {
 
 void Init(ThreadMode mode) {
   BB_ASSERT(Aio == nullptr);
-  auto program = boost::dll::program_location().filename().string();
-  BB_LOG_OPEN(program.c_str(), LOG_PID, LOG_LOCAL0);
-  BB_DEBUG_LOG("open log:%s", program.c_str());
+  program_name = boost::dll::program_location().filename().string();
+  BB_LOG_OPEN(program_name.c_str(), LOG_PID, LOG_LOCAL0);
+  BB_DEBUG_LOG("open log:%s", program_name.c_str());
 
   if (mode == ThreadMode::SINGLE) {
     Aio = std::make_shared<bamboo::aio::Aio>();
