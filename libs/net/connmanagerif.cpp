@@ -33,5 +33,9 @@ ConnManagerIf::ConnectHandler& ConnManagerIf::GetConnectHandler() {
   return connector_;
 }
 
+bamboo::protocol::ProtocolPtr ConnManagerIf::GetProtocol() {
+  return protocol_;
+}
+
 }
 }

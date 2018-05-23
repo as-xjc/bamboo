@@ -74,6 +74,9 @@ class ConnManagerIf {
     return ptr;
   }
 
+  /// 获取协议对象
+  virtual bamboo::protocol::ProtocolPtr GetProtocol() final;
+
   /// 新链接建立的回调处理函数类型
   using ConnectHandler = std::function<void(SocketPtr)>;
 
