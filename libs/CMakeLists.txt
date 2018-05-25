@@ -34,7 +34,9 @@ add_library(bamboo
 
         cache/l2cache.cpp
         cache/redis.cpp
+        cache/asyncredisif.cpp
         cache/asyncredis.cpp
+        cache/asyncredissubscriber.cpp
         )
 
 add_dependencies(bamboo libboost libzookeeper libleveldb libhiredis)

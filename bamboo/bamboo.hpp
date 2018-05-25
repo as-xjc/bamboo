@@ -39,3 +39,4 @@
 #include <bamboo/cache/redis.hpp>
 #include <bamboo/cache/l2cache.hpp>
 #include <bamboo/cache/asyncredis.hpp>
+#include <bamboo/cache/asyncredissubscriber.hpp>
