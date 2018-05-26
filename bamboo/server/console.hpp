@@ -62,7 +62,6 @@ class Console : public ServerIf {
   CmdInfo logCmd_;
   CmdInfo helpCmd_;
 
-  bamboo::net::AcceptorPtr acceptor_;
   std::string address_;
   uint16_t port_{0};
 };

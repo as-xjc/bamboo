@@ -15,8 +15,8 @@ Console::~Console() {}
 void Console::Configure(boost::program_options::variables_map& map) {}
 
 bool Console::PrepareStart() {
-  acceptor_ = CreateAcceptor<bamboo::net::SimpleAcceptor>(address_, port_);
-  auto mgr = acceptor_->CreateConnManager<bamboo::net::SimpleConnManager>();
+  auto acceptor = CreateAcceptor<bamboo::net::SimpleAcceptor>(address_, port_);
+  auto mgr = acceptor->CreateConnManager<bamboo::net::SimpleConnManager>();
   mgr->SetReadHandler(std::bind(&Console::readData, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
   return true;
 }
@@ -42,7 +42,12 @@ std::size_t Console::readData(bamboo::net::SocketPtr socket, const char* data, s
   } else {
     auto it = cmds_.find(cmd);
     if (it != cmds_.end() && it->second->handler) {
-      result = it->second->handler(strs);
+      try {
+        result = it->second->handler(strs);
+      } catch(std::exception& e) {
+        result = "exception:";
+        result.append(e.what());
+      }
     }
   }
   if (!result.empty()) {
