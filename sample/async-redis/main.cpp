@@ -2,17 +2,38 @@
 #include <iostream>
 
 int main(int argc, char* argv[]) {
+  boost::program_options::variables_map vm;
+  std::string ip;
+  uint16_t port;
+  try {
+    boost::program_options::options_description desc("async redis option");
+    desc.add_options()
+        ("help,h", "print all help manuals")
+        ("ip,i", boost::program_options::value<std::string>(&ip)->required(), "server listen ip")
+        ("port,p", boost::program_options::value<uint16_t>(&port)->required(), "server listen port");
+
+    boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("help")) {
+      std::cout << desc << std::endl;
+      return EXIT_SUCCESS;
+    }
+    boost::program_options::notify(vm);
+  } catch (std::exception& e) {
+    std::cout << e.what() << std::endl;
+    return EXIT_FAILURE;
+  }
+
   bamboo::env::Init();
   DEFER(bamboo::env::Close());
   auto aio = bamboo::env::GetIo();
 
   bamboo::cache::AsyncRedis redis(aio->GetMasterIo());
-  redis.SetAddress("0.0.0.0", 6379);
+  redis.SetAddress(ip.c_str(), port);
   redis.Connect();
   int i = 0;
 
   bamboo::cache::AsyncRedisSubscriber subscriber(aio->GetMasterIo());
-  subscriber.SetAddress("0.0.0.0", 6379);
+  subscriber.SetAddress(ip.c_str(), port);
   subscriber.Connect();
 
   subscriber.Subscribe("test.new", [](std::string channel, std::string message) {
