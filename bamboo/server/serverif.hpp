@@ -38,6 +38,9 @@ class ServerIf {
   /// 服务所处的io索引
   virtual std::size_t GetIoIndex() const final;
 
+  /// 返回服务使用的io
+  virtual boost::asio::io_context& GetIo() final;
+
   /// 配置接口
   virtual void Configure(boost::program_options::variables_map&) = 0;
 

@@ -45,6 +45,10 @@ std::size_t ServerIf::GetIoIndex() const {
   return ioIndex_;
 }
 
+boost::asio::io_context& ServerIf::GetIo() {
+  return io_;
+}
+
 bamboo::schedule::Scheduler& ServerIf::GetScheduler() {
   return *scheduler_.get();
 }
