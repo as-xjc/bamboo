@@ -91,7 +91,10 @@ void Socket::Close() {
   auto& closer = GetCloseHandler();
   if (closer) closer();
 
-  if (is_open()) this->close();
+  if (is_open()) {
+    this->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+    this->close();
+  }
 }
 
 }
