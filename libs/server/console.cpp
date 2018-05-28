@@ -23,7 +23,7 @@ bool Console::PrepareStart() {
 
 std::size_t Console::readData(bamboo::net::SocketPtr socket, const char* data, std::size_t size) {
   std::string msg(data, size);
-  boost::trim_if(msg, boost::is_any_of(" \n"));
+  boost::trim_if(msg, boost::is_any_of(" \r\n"));
 
   std::vector<std::string> strs;
   boost::split(strs, msg, boost::is_any_of(" "));
