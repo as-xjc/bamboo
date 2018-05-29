@@ -92,8 +92,13 @@ void Socket::Close() {
   if (closer) closer();
 
   if (is_open()) {
-    this->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-    this->close();
+    boost::system::error_code ec;
+    this->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    if (ec && ec != boost::system::errc::not_connected) {
+      BB_ERROR_LOG("shutdown socket error:%s", ec.message().c_str());
+    } else {
+      this->close();
+    }
   }
 }
 
