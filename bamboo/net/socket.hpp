@@ -28,7 +28,7 @@ class Socket : public SocketIf,
  private:
   void DoWriteData();
 
-  bamboo::buffer::FixedBuffer<1024*128> buffer_;
+  bamboo::buffer::FixedBuffer<1024*512> buffer_;
   std::list<std::shared_ptr<std::string>> list_;
 };
 

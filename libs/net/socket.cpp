@@ -7,7 +7,8 @@ Socket::~Socket() {}
 
 void Socket::ReadData() {
   if (buffer_.Free() < 1) {
-    BB_ERROR_LOG("socket read buffer is full????");
+    BB_ERROR_LOG("socket[%d] read buffer is full????", GetId());
+    Close();
     return;
   }
   auto self = shared_from_this();
