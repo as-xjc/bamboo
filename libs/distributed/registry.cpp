@@ -1,6 +1,12 @@
 #include "bamboo/distributed/registry.hpp"
 
 #include <array>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+
+#include <boost/algorithm/string.hpp>
+
 #include <bamboo/log/log.hpp>
 #include <bamboo/utility/defer.hpp>
 #include <bamboo/define.hpp>
@@ -8,8 +14,9 @@
 
 namespace {
 const char* SERVERS_PATH = "/servers";
-const char* RUNNING_PATH = "/running";
+const char* MASTER_PATH = "/master";
 const char* MASTER_NAME = "master";
+const char* SERVERS_NAME = "servers";
 }
 
 namespace bamboo {
@@ -19,6 +26,7 @@ Registry::Registry(boost::asio::io_context& io) : sender_(io), receiver_(io) {
   boost::asio::local::connect_pair(sender_, receiver_);
   DoRead();
 }
+
 Registry::~Registry() {}
 
 void Registry::Init(std::string address) {
@@ -42,96 +50,63 @@ void Registry::SetServerType(std::string name, int zone, bamboo::distributed::No
   nodeMode_ = mode;
 }
 
+bool Registry::createZkDir(const std::vector<std::string>& dir) {
+  if (dir.empty()) return false;
+
+  std::string path;
+  char buffer[128]{0};
+  int length = 128;
+
+  for (const auto& name : dir) {
+    path.append("/").append(name);
+    auto ret = zoo_create(zookeeper_.get(), path.c_str(), "", 0, &ZOO_OPEN_ACL_UNSAFE, 0, buffer, length);
+    if (ret != ZOK && ret != ZNODEEXISTS) {
+      BB_ERROR_LOG("create dir[%s] fail:%s", path.c_str(), zerror(ret));
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void Registry::InitServerId() {
   BB_ASSERT(!name_.empty());
 
-  std::array<char, 128> buffer{};
+  serverId_ = name_;
 
-  std::string path = SERVERS_PATH;
-  std::string message = "server list";
-  auto ret = zoo_create(zookeeper_.get(),
-                        path.c_str(),
-                        message.c_str(),
-                        message.size(),
-                        &ZOO_OPEN_ACL_UNSAFE,
-                        0,
-                        buffer.data(),
-                        buffer.size());
-  if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("create path[%s] fail:%s", path.c_str(), zerror(ret));
-    std::exit(EXIT_FAILURE);
-  }
+  boost::uuids::uuid uuid = boost::uuids::random_generator_mt19937()();
+  uuid_ = boost::uuids::to_string(uuid);
+  serverId_.append(":").append(std::to_string(zone_)).append(":").append(uuid_);
 
-  // /servers/name
-  path.append("/").append(name_);
-  ret = zoo_create(zookeeper_.get(),
-                   path.c_str(),
-                   message.c_str(),
-                   message.size(),
-                   &ZOO_OPEN_ACL_UNSAFE,
-                   0,
-                   buffer.data(),
-                   buffer.size());
-  if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("create path[%s] fail:%s", path.c_str(), zerror(ret));
-    std::exit(EXIT_FAILURE);
-  }
-
-  // /servers/name/zone
-  path.append("/").append(std::to_string(zone_));
-  ret = zoo_create(zookeeper_.get(), path.c_str(), "zone", 4, &ZOO_OPEN_ACL_UNSAFE, 0, buffer.data(), buffer.size());
-  if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("create path[%s] fail:%s", path.c_str(), zerror(ret));
-    std::exit(EXIT_FAILURE);
-  }
-
-  // /servers/name/zone/name:zone:xxxxxx
-  path.append("/").append(name_).append(":").append(std::to_string(zone_)).append(":");
-  ret = zoo_create(zookeeper_.get(), path.c_str(), "name", 4, &ZOO_OPEN_ACL_UNSAFE,
-                   ZOO_EPHEMERAL | ZOO_SEQUENCE, buffer.data(), buffer.size());
-  if (ret != ZOK) {
-    BB_ERROR_LOG("create path[%s] fail:%s", path.c_str(), zerror(ret));
-    std::exit(EXIT_FAILURE);
-  }
-
-  std::string fullPath(buffer.data());
-  BB_DEBUG_LOG("create path:%s", fullPath.c_str());
-  auto pos = fullPath.rfind('/');
-  if (pos == std::string::npos) {
-    BB_ERROR_LOG("create server id fail:%s", fullPath.c_str());
-    std::exit(EXIT_FAILURE);
-  }
-  serverId_ = fullPath.substr(pos + 1, fullPath.size() - pos);
   BB_INFO_LOG("init server id:%s", serverId_.c_str());
-
-  if (nodeMode_ == NodeMode::MASTER_MASTER) {
-    nodeState_ = NodeState::MASTER;
-  } else {
-    initNodeState(false);
-  }
-
-  if (nodeState_ == NodeState::MASTER) {
-    BB_INFO_LOG("init server node state: <master>");
-  } else {
-    BB_INFO_LOG("init server node state: <slave>");
-  }
 }
 
-void Registry::initNodeState(bool notify) {
-  const NodeState old = nodeState_;
-
+void Registry::initNodeState() {
   char buffer[128]{0};
   int length = 128;
-  std::string master = SERVERS_PATH;
-  master.append("/").append(name_).append("/").append(std::to_string(zone_)).append("/").append(MASTER_NAME);
-  auto ret = zoo_create(zookeeper_.get(), master.c_str(), serverId_.c_str(),
-                        serverId_.size(), &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, length);
-  if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("create master[%s] fail:%s", master.c_str(), zerror(ret));
-    if (!notify) std::exit(EXIT_FAILURE);
+
+  if (!createZkDir({MASTER_NAME, name_})) {
+    BB_ERROR_LOG("register create master dir fail");
+    std::exit(EXIT_FAILURE);
   }
 
-  ret = zoo_wget(zookeeper_.get(), master.c_str(), &Registry::watchMaster, this, buffer, &length, nullptr);
+  std::string path = MASTER_PATH;
+  path.append("/").append(name_).append("/").append(std::to_string(zone_));
+  auto ret = zoo_create(zookeeper_.get(),
+                        path.c_str(),
+                        serverId_.c_str(),
+                        serverId_.size(),
+                        &ZOO_OPEN_ACL_UNSAFE,
+                        ZOO_EPHEMERAL,
+                        buffer,
+                        length);
+
+  if (ret != ZOK && ret != ZNODEEXISTS) {
+    BB_ERROR_LOG("create master[%s] fail:%s", path.c_str(), zerror(ret));
+    std::exit(EXIT_FAILURE);
+  }
+
+  ret = zoo_wget(zookeeper_.get(), path.c_str(), &Registry::WatchSelfMasterState, this, buffer, &length, nullptr);
   if (ret == ZOK) {
     if (serverId_ == std::string(buffer, length)) {
       nodeState_ = NodeState::MASTER;
@@ -139,20 +114,59 @@ void Registry::initNodeState(bool notify) {
       nodeState_ = NodeState::SLAVE;
     }
   } else {
-    BB_ERROR_LOG("get master[%s] fail:%s", master.c_str(), zerror(ret));
+    BB_ERROR_LOG("get master[%s] fail:%s", path.c_str(), zerror(ret));
     nodeState_ = NodeState::SLAVE;
-    if (!notify) std::exit(EXIT_FAILURE);
+    std::exit(EXIT_FAILURE);
   }
 
-  if (notify && old != nodeState_ && stateChangeHandler_) {
-    stateChangeHandler_(nodeState_);
+  if (stateChangeHandler_) stateChangeHandler_(nodeState_);
+}
+
+void Registry::updateNodeState() {
+  const NodeState old = nodeState_;
+
+  DEFER(
+      if (old != nodeState_ && stateChangeHandler_) {
+        stateChangeHandler_(nodeState_);
+      }
+      );
+
+  char buffer[128]{0};
+  int length = 128;
+  std::string path = MASTER_PATH;
+  path.append("/").append(name_).append("/").append(std::to_string(zone_));
+  auto ret = zoo_create(zookeeper_.get(),
+                        path.c_str(),
+                        serverId_.c_str(),
+                        serverId_.size(),
+                        &ZOO_OPEN_ACL_UNSAFE,
+                        ZOO_EPHEMERAL,
+                        buffer,
+                        length);
+
+  if (ret != ZOK && ret != ZNODEEXISTS) {
+    BB_ERROR_LOG("create master[%s] fail:%s", path.c_str(), zerror(ret));
+    nodeState_ = NodeState::SLAVE;
+    return;
+  }
+
+  ret = zoo_wget(zookeeper_.get(), path.c_str(), &Registry::WatchSelfMasterState, this, buffer, &length, nullptr);
+  if (ret == ZOK) {
+    if (serverId_ == std::string(buffer, length)) {
+      nodeState_ = NodeState::MASTER;
+    } else {
+      nodeState_ = NodeState::SLAVE;
+    }
+  } else {
+    BB_ERROR_LOG("get master[%s] fail:%s", path.c_str(), zerror(ret));
+    nodeState_ = NodeState::SLAVE;
   }
 }
 
-void Registry::watchMaster(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
+void Registry::WatchSelfMasterState(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
   auto p = reinterpret_cast<Registry*>(watcherCtx);
   p->taskLock_.lock();
-  p->taskList_.emplace_back(std::bind(&Registry::initNodeState, p, true));
+  p->taskList_.emplace_back(std::bind(&Registry::updateNodeState, p));
   p->taskLock_.unlock();
   p->DoWrite();
 }
@@ -207,14 +221,32 @@ void Registry::AddWatchServer(std::string type) {
   watchServers_.insert(type);
 }
 
-void Registry::watchServer(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
+void Registry::WatchCreateServer(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
   if (type == ZOO_CREATED_EVENT) {
     auto p = reinterpret_cast<Registry*>(watcherCtx);
     std::string serverpath(path);
     p->taskLock_.lock();
-    p->taskList_.emplace_back(std::bind(&Registry::_watchServerList, p, serverpath));
+    p->taskList_.emplace_back(std::bind(&Registry::_watchServerZone, p, serverpath));
     p->taskLock_.unlock();
     p->DoWrite();
+  }
+}
+
+void Registry::_watchServerZone(std::string path) {
+  String_vector strv{};
+  DEFER(deallocate_String_vector(&strv));
+
+  auto ret = zoo_wget_children(zookeeper_.get(), path.c_str(), &Registry::WatchServerZone, this, &strv);
+  if (ret != ZOK) {
+    BB_ERROR_LOG("watch server zone[%s] fail:%s", path.c_str(), zerror(ret));
+    return;
+  }
+
+  std::string _path;
+  for (int i = 0; i < strv.count; ++i) {
+    _path = path;
+    _path.append("/").append(strv.data[i]);
+    _watchServerList(_path);
   }
 }
 
@@ -222,9 +254,9 @@ void Registry::_watchServerList(std::string path) {
   String_vector strv{};
   DEFER(deallocate_String_vector(&strv));
 
-  auto ret = zoo_wget_children(zookeeper_.get(), path.c_str(), &Registry::watchServerList, this, &strv);
+  auto ret = zoo_wget_children(zookeeper_.get(), path.c_str(), &Registry::WatchServerZoneListChange, this, &strv);
   if (ret != ZOK) {
-    BB_ERROR_LOG("watch serverList[%s] fail:%s", path.c_str(), zerror(ret));
+    BB_ERROR_LOG("watch server zone list[%s] fail:%s", path.c_str(), zerror(ret));
     return;
   }
 
@@ -233,12 +265,25 @@ void Registry::_watchServerList(std::string path) {
     servers.insert(strv.data[i]);
   }
 
-  auto it = path.rfind('/');
-  std::string server = path.substr(it+1, path.size()-it);
-  checkServerList(server, std::move(servers));
+  std::vector<std::string> paths;
+  boost::algorithm::split(paths, path, boost::algorithm::is_any_of("/"));
+  std::string server = paths[paths.size()-2];
+  int zone = std::stoi(paths[paths.size()-1]);
+  updateServerList(server, zone, servers);
 }
 
-void Registry::watchServerList(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
+void Registry::WatchServerZone(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
+  if (type == ZOO_CREATED_EVENT) {
+    auto p = reinterpret_cast<Registry*>(watcherCtx);
+    std::string serverpath(path);
+    p->taskLock_.lock();
+    p->taskList_.emplace_back(std::bind(&Registry::_watchServerZone, p, serverpath));
+    p->taskLock_.unlock();
+    p->DoWrite();
+  }
+}
+
+void Registry::WatchServerZoneListChange(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx) {
   if (type == ZOO_CHILD_EVENT) {
     auto p = reinterpret_cast<Registry*>(watcherCtx);
     std::string serverpath(path);
@@ -249,22 +294,9 @@ void Registry::watchServerList(zhandle_t* zh, int type, int state, const char* p
   }
 }
 
-std::tuple<std::string, int> Registry::parserServerId(const std::string& serverId) {
-  auto first = serverId.find(':');
-  auto end = serverId.rfind(':');
-  if (first == std::string::npos || end == std::string::npos || first == end) {
-    return std::make_tuple("", 0);
-  }
-
-  std::string type = serverId.substr(0, first);
-  std::string zonestr = serverId.substr(first+1, end-first-1);
-  int zone = std::stoi(zonestr);
-  return std::make_tuple(type, zone);
-}
-
-std::string Registry::getServerInfo(const std::string& type, const std::string& serverId) {
-  std::string path = RUNNING_PATH;
-  path.append("/").append(type).append("/").append(serverId);
+std::string Registry::getServerInfo(const std::string& type, int zone, const std::string& serverId) {
+  std::string path = SERVERS_PATH;
+  path.append("/").append(type).append("/").append(std::to_string(zone)).append(serverId);
   char buffer[128]{0};
   int length = 128;
   auto ret = zoo_get(zookeeper_.get(), path.c_str(), 0, buffer, &length, nullptr);
@@ -275,7 +307,7 @@ std::string Registry::getServerInfo(const std::string& type, const std::string& 
   }
 }
 
-void Registry::checkServerList(std::string serverType, std::set<std::string> list) {
+void Registry::updateServerList(std::string serverType, int zone, const std::set<std::string>& list) {
   // check del
   {
     auto it = serversList_.find(serverType);
@@ -292,17 +324,14 @@ void Registry::checkServerList(std::string serverType, std::set<std::string> lis
   }
 
   // check add
-  std::string server;
-  int zone;
   for (auto& serverId : list) {
-    std::tie(server, zone) = parserServerId(serverId);
-    if (!inWatch(server, zone, serverId)) continue;
+    if (!inWatch(serverType, zone, serverId)) continue;
 
-    auto& set = serversList_[server];
+    auto& set = serversList_[serverType];
     if (set.find(serverId) == set.end()) {
       set.insert(serverId);
       if (addServerHandler_) {
-        addServerHandler_(server, zone, serverId, getServerInfo(server, serverId));
+        addServerHandler_(serverType, zone, serverId, getServerInfo(serverType, zone, serverId));
       }
     }
   }
@@ -323,20 +352,14 @@ void Registry::StartWatch() {
     watchServer.insert(it.first);
   }
 
-  char buffer[128]{0};
-  auto ret = zoo_create(zookeeper_.get(), RUNNING_PATH, "running", 7, &ZOO_OPEN_ACL_UNSAFE, 0, buffer, 128);
-  if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("create running[%s] fail:%s", RUNNING_PATH, zerror(ret));
-    std::exit(EXIT_FAILURE);
-  }
-
-  for (auto& server : watchServer) {
-    std::string path = RUNNING_PATH;
+  std::string path;
+  for (const auto& server : watchServer) {
+    path = SERVERS_PATH;
     path.append("/").append(server);
-    auto ret = zoo_wexists(zookeeper_.get(), path.c_str(), &Registry::watchServer, this, nullptr);
+    auto ret = zoo_wexists(zookeeper_.get(), path.c_str(), &Registry::WatchCreateServer, this, nullptr);
     if (ret != ZOK) continue;
 
-    _watchServerList(path);
+    _watchServerZone(path);
   }
 }
 
@@ -345,19 +368,30 @@ void Registry::Register() {
   std::string message;
   if (serverInfoHandler_) message = serverInfoHandler_();
 
-  std::string path = RUNNING_PATH;
-  path.append("/").append(name_);
-  auto ret = zoo_create(zookeeper_.get(), path.c_str(), "list", 4, &ZOO_OPEN_ACL_UNSAFE, 0, buffer, 128);
+  const std::string zone = std::to_string(zone_);
+  if (!createZkDir({SERVERS_NAME, name_, zone})) {
+    BB_ERROR_LOG("register create server dir fail");
+    std::exit(EXIT_FAILURE);
+  }
+  std::string path = SERVERS_PATH;
+
+  path.append("/").append(name_).append("/").append(zone).append("/").append(serverId_);
+  auto ret = zoo_create(zookeeper_.get(), path.c_str(), message.c_str(), message.size(), &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, 128);
   if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("register running[%s] fail:%s", path.c_str(), zerror(ret));
+    BB_ERROR_LOG("register server[%s] fail:%s", path.c_str(), zerror(ret));
     std::exit(EXIT_FAILURE);
   }
 
-  path.append("/").append(serverId_);
-  ret = zoo_create(zookeeper_.get(), path.c_str(), message.c_str(), message.size(), &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, buffer, 128);
-  if (ret != ZOK && ret != ZNODEEXISTS) {
-    BB_ERROR_LOG("register running[%s] fail:%s", path.c_str(), zerror(ret));
-    std::exit(EXIT_FAILURE);
+  if (nodeMode_ == NodeMode::MASTER_MASTER) {
+    nodeState_ = NodeState::MASTER;
+  } else {
+    initNodeState();
+  }
+
+  if (nodeState_ == NodeState::MASTER) {
+    BB_INFO_LOG("init server node state: <master>");
+  } else {
+    BB_INFO_LOG("init server node state: <slave>");
   }
 }
 

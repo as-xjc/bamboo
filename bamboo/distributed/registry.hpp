@@ -135,8 +135,7 @@ class Registry {
 
   /**
    * 初始化服务id，为该服务获得一个全局唯一的id
-   * 服务id格式：type:zone:xxxxxx
-   * 生成在 /servers/type/zone/type:zone:xxxxxx
+   * 服务id格式：type:zone:uuid
    */
   virtual void InitServerId() final;
 
@@ -144,25 +143,22 @@ class Registry {
   friend class bamboo::aio::AioIf;
 
  private:
-  /**
-   * 初始化服务节点的服节点状态
-   * @param notify 首次调用是在注册期间，使用false。
-   *               如果服务是 MASTER_SLAVE 模式，同时会监听 master 的变化，一旦有变动则处理主从状态回调
-   */
-  void initNodeState(bool notify);
+  /// 创建zk的路径
+  bool createZkDir(const std::vector<std::string>& dir);
 
-  /**
-   * 注册监听服务的所有区域
-   * @param server 需要监听的服务
-   */
-  void _watchServerList(std::string server);
+  /// 初始化服务节点的服节点状态，如果服务是 MASTER_SLAVE 模式，同时会监听 master 的变化，一旦有变动则处理主从状态回调
+  void initNodeState();
+
+  /// 更新服务节点的节点状态
+  void updateNodeState();
 
   /**
    * 处理某个服务类型的服务列表变动
    * @param serverType 服务类型
+   * @param zone 服务区域
    * @param list 当前的服务列表
    */
-  void checkServerList(std::string serverType, std::set<std::string> list);
+  void updateServerList(std::string serverType, int zone, const std::set<std::string>& list);
 
   /**
    * 判断服务是否被设置为需要监听
@@ -174,29 +170,32 @@ class Registry {
   bool inWatch(std::string server, int zone, std::string serverId);
 
   /**
-   * 解析服务id，提取服务类型和服务所在的区域
-   * @param id 服务id
-   * @return <服务类型，服务区域>
-   */
-  std::tuple<std::string, int> parserServerId(const std::string& id);
-
-  /**
    * 获取服务的服务信息
-   * 该信息是保存在 /running/type/serverId 中
+   * 该信息是保存在 /servers/type/zone/serverId 中
    * @param type 服务类型
+   * @param zone 服务区域
    * @param serverId 服务id
    * @return 服务信息
    */
-  std::string getServerInfo(const std::string& type, const std::string& serverId);
+  std::string getServerInfo(const std::string& type, int zone, const std::string& serverId);
 
-  /// 监听master变化的处理函数
-  static void watchMaster(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
+  /// 监听自身master变化的处理函数, 在`MASTER_SLAVE`模式下才会有效
+  static void WatchSelfMasterState(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
 
-  /// 监听服务区域变化的处理函数
-  static void watchServer(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
+  /// 监听新增服务的处理函数
+  static void WatchCreateServer(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
 
-  /// 监听服务列表变化的处理函数
-  static void watchServerList(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
+  /// 监听服务新增区域的处理函数
+  static void WatchServerZone(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
+
+  /// 新增服务区域处理
+  void _watchServerZone(std::string path);
+
+  /// 监听服务区域下，服务列表变化的处理函数
+  static void WatchServerZoneListChange(zhandle_t* zh, int type, int state, const char* path, void* watcherCtx);
+
+  /// 服务区域下的服务列表变化处理
+  void _watchServerList(std::string path);
 
   /// 发送信号
   void DoRead();
@@ -208,6 +207,7 @@ class Registry {
 
   std::string address_;
   std::string serverId_;
+  std::string uuid_;
   std::string name_;
   int zone_{0};
   NodeMode nodeMode_{NodeMode::MASTER_SLAVE};

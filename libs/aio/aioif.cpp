@@ -9,8 +9,8 @@ AioIf::~AioIf() {}
 
 void AioIf::Start() {
   if (registry_) {
-    registry_->Connect();
     registry_->InitServerId();
+    registry_->Connect();
   }
 
   for (auto& it : servers_) {
@@ -21,8 +21,8 @@ void AioIf::Start() {
   }
 
   if (registry_) {
-    registry_->StartWatch();
     registry_->Register();
+    registry_->StartWatch();
   }
   IoRun();
 }
