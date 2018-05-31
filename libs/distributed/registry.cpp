@@ -314,7 +314,7 @@ void Registry::updateServerList(std::string serverType, int zone, const std::set
     if (it != serversList_.end()) {
       for (auto it2 = it->second.begin(); it2 != it->second.end(); ) {
         if (list.find(*it2) == list.end()) {
-          if (delServerHandler_) delServerHandler_(*it2);
+          if (delServerHandler_) delServerHandler_(serverType, zone, *it2);
           it2 = it->second.erase(it2);
         } else {
           ++it2;

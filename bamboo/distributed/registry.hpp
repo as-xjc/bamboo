@@ -93,7 +93,7 @@ class Registry {
   virtual void SetNodeStateChangeHandler(NodeStateHandler&& handler) final;
 
   /// 服务删除回调处理函数类型
-  using DelServerHandler = std::function<void(std::string)>;
+  using DelServerHandler = std::function<void(std::string, int, std::string)>;
 
   /// 注册服务移除的回调处理函数
   virtual void SetDelServerHandler(DelServerHandler&& handler) final;
