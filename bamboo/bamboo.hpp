@@ -33,6 +33,7 @@
 
 #include <bamboo/utility/defer.hpp>
 #include <bamboo/utility/timemeasure.hpp>
+#include <bamboo/utility/singleton.hpp>
 
 #include <bamboo/distributed/registry.hpp>
 

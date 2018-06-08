@@ -4,6 +4,7 @@
 
 #include <bamboo/buffer/dynamicbuffer.hpp>
 #include <bamboo/buffer/fixedbuffer.hpp>
+#include <bamboo/utility/singleton.hpp>
 
 TEST(dynamicBuffer, Init) {
   bamboo::buffer::DynamicBuffer buffer;
@@ -26,4 +27,8 @@ TEST(FixedBuffer, Write) {
   buffer.Write(nihao.data(), nihao.length());
   ASSERT_EQ(buffer.Size(), nihao.length());
   ASSERT_EQ(buffer.Free(), buffer.Capacity() - nihao.length());
+}
+
+TEST(Singleton, int) {
+  ASSERT_EQ(bamboo::utility::Singleton<int>::Instance(), bamboo::utility::Singleton<int>::Instance());
 }
