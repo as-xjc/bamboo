@@ -32,18 +32,16 @@ add_library(bamboo
 
         distributed/registry.cpp
 
-        cache/l2cache.cpp
         cache/redis.cpp
         cache/asyncredisif.cpp
         cache/asyncredis.cpp
         cache/asyncredissubscriber.cpp
         )
 
-add_dependencies(bamboo libboost libzookeeper libleveldb libhiredis)
+add_dependencies(bamboo libboost libzookeeper libhiredis)
 target_link_libraries(bamboo
         boost_system.a
         boost_filesystem.a
         libboost_program_options.a
         libzookeeper_mt.a
-        libleveldb.a
         ${PROJECT_BINARY_DIR}/lib/libhiredis.a)

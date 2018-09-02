@@ -36,8 +36,3 @@
 #include <bamboo/utility/singleton.hpp>
 
 #include <bamboo/distributed/registry.hpp>
-
-#include <bamboo/cache/redis.hpp>
-#include <bamboo/cache/l2cache.hpp>
-#include <bamboo/cache/asyncredis.hpp>
-#include <bamboo/cache/asyncredissubscriber.hpp>
