@@ -31,11 +31,6 @@ add_library(bamboo
         utility/timemeasure.cpp
 
         distributed/registry.cpp
-
-        cache/redis.cpp
-        cache/asyncredisif.cpp
-        cache/asyncredis.cpp
-        cache/asyncredissubscriber.cpp
         )
 
 add_dependencies(bamboo libboost libzookeeper libhiredis)
@@ -43,5 +38,4 @@ target_link_libraries(bamboo
         boost_system.a
         boost_filesystem.a
         libboost_program_options.a
-        libzookeeper_mt.a
-        ${PROJECT_BINARY_DIR}/lib/libhiredis.a)
+        libzookeeper_mt.a)

@@ -1,4 +1,6 @@
 #include <bamboo/bamboo.hpp>
+#include <redis-asio/asyncredis.hpp>
+#include <redis-asio/asyncredissubscriber.hpp>
 #include <iostream>
 
 int main(int argc, char* argv[]) {
@@ -27,12 +29,12 @@ int main(int argc, char* argv[]) {
   DEFER(bamboo::env::Close());
   auto aio = bamboo::env::GetIo();
 
-  bamboo::cache::AsyncRedis redis(aio->GetMasterIo());
+  redis_asio::AsyncRedis redis(aio->GetMasterIo());
   redis.SetAddress(ip.c_str(), port);
   redis.Connect();
   int i = 0;
 
-  bamboo::cache::AsyncRedisSubscriber subscriber(aio->GetMasterIo());
+  redis_asio::AsyncRedisSubscriber subscriber(aio->GetMasterIo());
   subscriber.SetAddress(ip.c_str(), port);
   subscriber.Connect();
 

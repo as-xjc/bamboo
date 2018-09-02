@@ -32,3 +32,13 @@ ExternalProject_Add(libhiredis
         BUILD_COMMAND make
         INSTALL_COMMAND make PREFIX=${PROJECT_BINARY_DIR} install
         )
+
+ExternalProject_Add(libredis-asio
+        GIT_REPOSITORY https://github.com/as-xjc/redis-asio
+        GIT_TAG master
+        CMAKE_CACHE_ARGS
+            -DBOOST_DIR:PATH=${PROJECT_BINARY_DIR}
+            -DHIREDIS_DIR:PATH=${PROJECT_BINARY_DIR}
+            -DCMAKE_BUILD_TYPE:STRING=Release
+            -DCMAKE_INSTALL_PREFIX:PATH=${PROJECT_BINARY_DIR}
+        )

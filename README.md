@@ -5,7 +5,7 @@
 ## 特征
 
 * 模块化的服务封装，简化服务编写
-* 同步/异步`redis`客户端(基于`hiredis`，异步使用`boost.asio`事件触发)
+* 同步/异步`redis`客户端(基于`hiredis`，异步使用`boost.asio`事件触发) [redis-asio](https://github.com/as-xjc/redis-asio)
 * 基于`protobuf`的进程内缓存框架（后端使用redis）[protobuf-l2cache](https://github.com/as-xjc/protobuf-l2cache)
 * 基于`boost::beast`的`http`服务端和客户端 -- 计划
 
